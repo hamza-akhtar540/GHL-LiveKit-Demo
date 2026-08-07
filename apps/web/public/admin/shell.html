@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin dashboard</title>
+<link rel="stylesheet" href="/admin/admin.css" />
+</head>
+<body>
+  <nav id="nav">
+    <div class="brand">GHL<span>×</span>LiveKit</div>
+    <a href="#/overview" data-route="overview"><span class="dot"></span>Overview</a>
+    <a href="#/live" data-route="live"><span class="dot"></span>Live sessions</a>
+    <a href="#/needs-human" data-route="needs-human"><span class="dot"></span>Needs a human</a>
+    <a href="#/conversations" data-route="conversations"><span class="dot"></span>Conversations</a>
+    <a href="#/bookings" data-route="bookings"><span class="dot"></span>Bookings</a>
+    <a href="#/leads" data-route="leads"><span class="dot"></span>Leads</a>
+    <a href="#/opportunities" data-route="opportunities"><span class="dot"></span>Opportunities</a>
+    <a href="#/contacts" data-route="contacts"><span class="dot"></span>Contacts</a>
+    <a href="#/emails" data-route="emails"><span class="dot"></span>Emails</a>
+    <a href="#/social" data-route="social"><span class="dot"></span>Social</a>
+    <div class="nav-spacer"></div>
+    <button id="logout">Sign out</button>
+  </nav>
+
+  <main id="main"><div class="empty">Loading…</div></main>
+
+  <!-- Both of these live OUTSIDE <main> deliberately. Every page renders by
+       assigning main.innerHTML, and two pages do it on a timer — so a dialog or
+       toast placed inside would be destroyed mid-interaction, taking the
+       operator's half-typed form with it. -->
+  <dialog id="dlg"></dialog>
+  <div class="toast" id="toast"></div>
+
+<script type="module" src="/admin/app.js"></script>
+</body>
+</html>

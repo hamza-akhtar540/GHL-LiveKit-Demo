@@ -11,12 +11,30 @@
     "smoke": "tsx scripts/smoke.ts",
     "webhook": "tsx scripts/webhook.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "ghl:booking": "tsx scripts/ghl-booking-test.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "email:test": "tsx scripts/email-test.ts",
+    "email:send": "tsx scripts/email-send-test.ts",
+    "leads:demo": "tsx scripts/leads-demo.ts",
+    "leads:live": "tsx scripts/leads-live.ts",
+    "leads:retry": "tsx scripts/leads-retry.ts",
+    "scheduler": "tsx scripts/scheduler.ts",
+    "social": "tsx scripts/social.ts",
+    "admin:write-test": "tsx scripts/admin-write-test.ts",
+    "backfill:booking-contacts": "tsx scripts/backfill-booking-contacts.ts",
+    "backfill:conversation-leads": "tsx scripts/backfill-conversation-leads.ts"
   },
   "dependencies": {
+    "@livekit/protocol": "^1.50.4",
+    "drizzle-orm": "^0.45.2",
+    "livekit-server-sdk": "^2.17.0",
+    "postgres": "^3.4.9",
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "drizzle-kit": "^0.31.10"
   }
 }

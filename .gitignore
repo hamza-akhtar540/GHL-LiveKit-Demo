@@ -13,3 +13,9 @@ dist/
 
 # Scratch captures from the day-1 webhook probe
 webhook-captures/
+
+# Runtime artifacts — real conversation transcripts and lead payloads.
+# These contain contact details and are recreated on every run.
+lead-convos/
+transcripts/
+lead-captures/

@@ -11,10 +11,20 @@
  *
  * This is deliberately read-only. It creates nothing in the account.
  */
-import "dotenv/config";
+import { config } from "dotenv";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Bare `dotenv/config` resolves .env against the CWD, which is this package —
+// so running via `pnpm --filter` found no .env at all and the test failed on
+// "missing GHL_PIT" before it could check anything. Every other script in here
+// points at the repo root explicitly; this one now does too.
+config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../../.env") });
+
 import { GhlClient, GhlError } from "../src/ghl/client.js";
 import { paths, freeSlotsParams, DATE_KEY } from "../src/ghl/endpoints.js";
-import { ghlEnv } from "../src/env.js";
+import { ghlEnv, calendarIdFor } from "../src/env.js";
+import { getIndustry } from "../src/industries/index.js";
 
 const ok = (m: string) => console.log(`  \x1b[32m✓\x1b[0m ${m}`);
 const bad = (m: string) => console.log(`  \x1b[31m✗\x1b[0m ${m}`);
@@ -55,11 +65,45 @@ async function main() {
 
   const list: any[] = calendars?.calendars ?? [];
   info(`${list.length} calendar(s) on this location`);
-  const match = list.find((c) => c.id === env.calendarId);
-  if (match) {
-    ok(`GHL_CALENDAR_ID matches "${match.name}"`);
-  } else {
-    bad("GHL_CALENDAR_ID not found on this location. Available:");
+
+  /**
+   * Check the calendars the CONFIG actually uses, one per bookable resource.
+   *
+   * This used to require `GHL_CALENDAR_ID` to match, and exited 1 when it
+   * didn't — which made the whole gate red for a perfectly valid setup. A hotel
+   * books rooms AND tables on separate calendars, so it sets
+   * `GHL_CALENDAR_ROOM_KING`, `GHL_CALENDAR_TABLE` and so on, and leaves the
+   * single-calendar fallback empty on purpose. The test was asserting a
+   * single-resource assumption the product outgrew.
+   */
+  const industry = getIndustry(process.env.INDUSTRY ?? "roofing");
+  info(`industry "${industry.id}" with ${industry.resources.length} bookable resource(s)`);
+
+  let calendarProblems = 0;
+  const checked: { resourceId: string; calendarId: string }[] = [];
+
+  for (const resource of industry.resources) {
+    let calendarId: string;
+    try {
+      calendarId = calendarIdFor(resource.id);
+    } catch (e) {
+      bad(`${resource.id}: ${(e as Error).message}`);
+      calendarProblems++;
+      continue;
+    }
+
+    const match = list.find((c) => c.id === calendarId);
+    if (match) {
+      ok(`${resource.id} → "${match.name}"`);
+      checked.push({ resourceId: resource.id, calendarId });
+    } else {
+      bad(`${resource.id} → calendar ${calendarId} is not on this location`);
+      calendarProblems++;
+    }
+  }
+
+  if (calendarProblems) {
+    info("calendars available on this location:");
     for (const c of list) info(`${c.id}  ${c.name}`);
     process.exit(1);
   }
@@ -70,8 +114,15 @@ async function main() {
   const in7d = now + 7 * 24 * 60 * 60 * 1000;
 
   let slots: any;
+  // Probe the first calendar we just confirmed exists. This used to be
+  // `env.calendarId ?? calendarIdFor("room")`, and both halves were stale: the
+  // fallback var is legitimately empty for multi-resource verticals, and "room"
+  // has not been a resource id since the hotel config split it into
+  // room_king / room_queen / room_suite — so it threw instead of probing.
+  const probe = checked[0]!;
+  info(`probing ${probe.resourceId} (${probe.calendarId})`);
   try {
-    slots = await ghl.get(paths.freeSlots(env.calendarId), {
+    slots = await ghl.get(paths.freeSlots(probe.calendarId), {
       [freeSlotsParams.startDate]: now,
       [freeSlotsParams.endDate]: in7d,
       [freeSlotsParams.timezone]: env.timezone,

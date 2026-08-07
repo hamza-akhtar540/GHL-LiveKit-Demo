@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The Fairmount — Boutique Hotel on Rainey Street, Austin</title>
+<meta name="description" content="A 96-room boutique hotel on Rainey Street, Austin. Rooftop pool, and Halcyon — our rooftop restaurant, open to the public." />
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --ink: #16241f;
+    --ink-soft: #3d5049;
+    --muted: #6d7f77;
+    --line: #e4e8e5;
+    --paper: #fff;
+    --wash: #f6f7f5;
+    --sand: #f3ede2;
+    --brass: #b07d3f;
+    --brass-dark: #8e6330;
+    --wrap: 1140px;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { margin: 0; line-height: 1.14; font-weight: 400; letter-spacing: -0.015em;
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+  h1 { font-size: clamp(2.6rem, 5.4vw, 4.1rem); }
+  h2 { font-size: clamp(1.9rem, 3.5vw, 2.6rem); }
+  h3 { font-size: 1.28rem; }
+  p { margin: 0; }
+  a { color: inherit; }
+  .wrap { max-width: var(--wrap); margin: 0 auto; padding: 0 24px; }
+  .eyebrow {
+    text-transform: uppercase; letter-spacing: .16em; font-size: .74rem;
+    font-weight: 700; color: var(--brass); font-family: inherit;
+  }
+
+  /* nav */
+  header {
+    position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,.94);
+    backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; gap: 32px; height: 74px; }
+  .brand {
+    display: flex; align-items: center; gap: 11px; font-size: 1.18rem;
+    font-family: "Iowan Old Style", Palatino, Georgia, serif; letter-spacing: .01em;
+  }
+  .mark { width: 30px; height: 30px; flex: none; }
+  .nav nav { margin-left: auto; display: flex; gap: 30px; font-size: .94rem; }
+  .nav nav a { text-decoration: none; color: var(--ink-soft); }
+  .nav nav a:hover { color: var(--brass); }
+  .book {
+    background: var(--brass); color: #fff; border: 0; cursor: pointer; font: inherit;
+    font-weight: 600; font-size: .93rem; padding: 11px 20px; border-radius: 3px; white-space: nowrap;
+  }
+  .book:hover { background: var(--brass-dark); }
+  @media (max-width: 940px) { .nav nav { display: none; } }
+
+  /* hero */
+  .hero { background: var(--ink); color: #fff; position: relative; overflow: hidden; }
+  .hero .wrap { display: grid; grid-template-columns: 1.02fr .98fr; gap: 60px; align-items: center;
+    padding-top: 84px; padding-bottom: 84px; }
+  .hero h1 { color: #fff; }
+  .lede { font-size: 1.14rem; color: #b3c3bb; margin-top: 22px; max-width: 36ch; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px; border: 0; cursor: pointer;
+    font: inherit; font-weight: 600; font-size: 1rem; padding: 14px 26px; border-radius: 3px;
+    background: var(--brass); color: #fff; text-decoration: none; transition: background .16s;
+  }
+  .btn:hover { background: var(--brass-dark); }
+  .btn.ghost { background: transparent; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.36); }
+  .btn.ghost:hover { background: rgba(255,255,255,.09); }
+  .loc {
+    display: inline-flex; align-items: center; gap: 9px; color: #cfae7e;
+    font-size: .8rem; font-weight: 650; letter-spacing: .14em; text-transform: uppercase; margin-bottom: 24px;
+  }
+  .art { width: 100%; height: auto; border-radius: 3px; }
+  @media (max-width: 940px) {
+    .hero .wrap { grid-template-columns: 1fr; gap: 40px; padding-top: 56px; padding-bottom: 56px; }
+  }
+
+  /* facts */
+  .facts { background: var(--sand); }
+  .facts .wrap { display: flex; flex-wrap: wrap; gap: 16px 48px; padding-top: 24px; padding-bottom: 24px; }
+  .facts div { display: flex; align-items: center; gap: 10px; font-size: .93rem; color: var(--ink-soft); }
+  .facts svg { width: 18px; height: 18px; flex: none; stroke: var(--brass); fill: none; stroke-width: 1.8; }
+
+  section { padding: 96px 0; }
+  .head { max-width: 60ch; margin-bottom: 50px; }
+  .head p { color: var(--muted); margin-top: 15px; font-size: 1.06rem; }
+
+  /* rooms */
+  .rooms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  @media (max-width: 940px) { .rooms { grid-template-columns: 1fr; } section { padding: 64px 0; } }
+  .room { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; display: flex; flex-direction: column; }
+  .room .pic { height: 168px; position: relative; }
+  .room .body { padding: 22px; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+  .room p { color: var(--muted); font-size: .96rem; }
+  .rate { margin-top: auto; padding-top: 14px; display: flex; align-items: baseline; gap: 7px; }
+  .rate b { font-size: 1.3rem; font-weight: 600;
+    font-family: "Iowan Old Style", Palatino, Georgia, serif; }
+  .rate span { color: var(--muted); font-size: .87rem; }
+
+  /* dining */
+  .dining { background: var(--ink); color: #fff; }
+  .dining .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
+  .dining h2 { color: #fff; }
+  .dining p { color: #b3c3bb; margin-top: 16px; }
+  .hours { list-style: none; padding: 0; margin: 30px 0 0; display: grid; gap: 11px; max-width: 360px; }
+  .hours li { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 11px;
+    border-bottom: 1px solid rgba(255,255,255,.13); font-size: .96rem; }
+  .hours span { color: #93a89e; }
+  @media (max-width: 940px) { .dining .wrap { grid-template-columns: 1fr; gap: 40px; } }
+
+  /* amenities */
+  .amen { display: grid; grid-template-columns: repeat(4, 1fr); gap: 34px 28px; }
+  @media (max-width: 940px) { .amen { grid-template-columns: repeat(2, 1fr); } }
+  .amen h3 { font-size: 1.04rem; margin-bottom: 6px; }
+  .amen p { color: var(--muted); font-size: .93rem; }
+  .amen svg { width: 24px; height: 24px; stroke: var(--brass); fill: none; stroke-width: 1.7; margin-bottom: 13px; }
+
+  /* events */
+  .events { background: var(--wash); }
+  .events .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+  @media (max-width: 940px) { .events .wrap { grid-template-columns: 1fr; gap: 36px; } }
+  .spaces { list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 16px; }
+  .spaces li { display: flex; gap: 15px; align-items: flex-start; }
+  .spaces b { flex: none; color: var(--brass); font-size: .9rem; letter-spacing: .06em;
+    text-transform: uppercase; width: 92px; padding-top: 3px; }
+  .spaces span { color: var(--ink-soft); font-size: .99rem; }
+
+  .close { background: var(--sand); text-align: center; }
+  .close p { color: var(--ink-soft); margin: 16px auto 0; max-width: 46ch; font-size: 1.06rem; }
+  .close .cta-row { justify-content: center; }
+
+  footer { border-top: 1px solid var(--line); padding: 42px 0; font-size: .9rem; color: var(--muted); }
+  .foot { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+  .demo-tag { background: var(--wash); border: 1px solid var(--line); border-radius: 3px; padding: 5px 11px; font-size: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="5" y="9" width="22" height="20" stroke="#16241f" stroke-width="1.8"/>
+        <path d="M3 9 16 2l13 7" stroke="#b07d3f" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M11 29v-8h10v8M11 14h3M18 14h3" stroke="#16241f" stroke-width="1.8"/>
+      </svg>
+      The Fairmount
+    </div>
+    <nav>
+      <a href="#rooms">Rooms</a>
+      <a href="#halcyon">Halcyon</a>
+      <a href="#amenities">Amenities</a>
+      <a href="#events">Events</a>
+    </nav>
+    <button class="book" data-open-chat>Check availability</button>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <div class="loc">Rainey Street · Austin, Texas</div>
+      <h1>Ninety-six rooms, one very good rooftop.</h1>
+      <p class="lede">A boutique hotel five minutes from the convention centre, and Halcyon — our rooftop restaurant, open to the public.</p>
+      <div class="cta-row">
+        <button class="btn" data-open-chat>Book a room</button>
+        <button class="btn ghost" data-open-chat>Reserve a table</button>
+      </div>
+    </div>
+    <svg class="art" viewBox="0 0 480 360" fill="none" aria-hidden="true">
+      <rect width="480" height="360" fill="#1d302a"/>
+      <circle cx="386" cy="72" r="30" fill="#cfae7e" opacity=".22"/>
+      <circle cx="386" cy="72" r="17" fill="#cfae7e" opacity=".5"/>
+      <rect x="40" y="112" width="150" height="248" fill="#24392f"/>
+      <rect x="206" y="60" width="140" height="300" fill="#2b4237"/>
+      <rect x="362" y="150" width="82" height="210" fill="#24392f"/>
+      <g fill="#cfae7e">
+        <g opacity=".85">
+          <rect x="60" y="134" width="20" height="26"/><rect x="96" y="134" width="20" height="26"/>
+          <rect x="150" y="134" width="20" height="26"/><rect x="60" y="184" width="20" height="26"/>
+          <rect x="132" y="184" width="20" height="26"/><rect x="96" y="234" width="20" height="26"/>
+          <rect x="150" y="234" width="20" height="26"/><rect x="60" y="284" width="20" height="26"/>
+        </g>
+        <g opacity=".6">
+          <rect x="96" y="184" width="20" height="26"/><rect x="132" y="134" width="20" height="26"/>
+          <rect x="60" y="234" width="20" height="26"/><rect x="132" y="284" width="20" height="26"/>
+        </g>
+      </g>
+      <g fill="#e8d5b4">
+        <g opacity=".92">
+          <rect x="226" y="100" width="22" height="30"/><rect x="266" y="100" width="22" height="30"/>
+          <rect x="306" y="100" width="22" height="30"/><rect x="226" y="156" width="22" height="30"/>
+          <rect x="306" y="156" width="22" height="30"/><rect x="266" y="212" width="22" height="30"/>
+          <rect x="306" y="212" width="22" height="30"/><rect x="226" y="268" width="22" height="30"/>
+          <rect x="266" y="268" width="22" height="30"/>
+        </g>
+        <g opacity=".55">
+          <rect x="266" y="156" width="22" height="30"/><rect x="226" y="212" width="22" height="30"/>
+          <rect x="306" y="268" width="22" height="30"/>
+        </g>
+      </g>
+      <g fill="#cfae7e" opacity=".78">
+        <rect x="380" y="176" width="18" height="24"/><rect x="410" y="176" width="18" height="24"/>
+        <rect x="380" y="224" width="18" height="24"/><rect x="410" y="272" width="18" height="24"/>
+      </g>
+      <!-- rooftop pool + terrace -->
+      <rect x="206" y="46" width="140" height="14" fill="#cfae7e" opacity=".28"/>
+      <rect x="238" y="30" width="52" height="16" rx="2" fill="#6fb7c4" opacity=".55"/>
+      <g stroke="#cfae7e" stroke-width="1.5" opacity=".5">
+        <path d="M214 46v-9M226 46v-9M326 46v-9M338 46v-9"/>
+      </g>
+    </svg>
+  </div>
+</div>
+
+<div class="facts">
+  <div class="wrap">
+    <div><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Check-in 3pm · Check-out 11am</div>
+    <div><svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M4 17h16M6 17v-5a6 6 0 0 1 12 0v5"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg> Rooftop pool, 7am–10pm</div>
+    <div><svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg> Free cancellation up to 48 hours</div>
+    <div><svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M10 5.5a3.5 3.5 0 1 1 4 4"/><path d="M3 14c0-3 2.5-5 5-5s5 2 5 5v6H3z"/></svg> Dogs under 50lb welcome</div>
+  </div>
+</div>
+
+<section id="rooms">
+  <div class="wrap">
+    <div class="head">
+      <div class="eyebrow">Rooms</div>
+      <h2>Every room faces either the river or the street.</h2>
+      <p>Ninety-six of them, no two floors quite identical. Rates below are typical — the actual price depends on your dates.</p>
+    </div>
+    <div class="rooms">
+      <article class="room">
+        <div class="pic" style="background: linear-gradient(150deg,#2b4237,#4a6656)"></div>
+        <div class="body">
+          <h3>King</h3>
+          <p>340 sq ft, walk-in shower, riverside or street. The one most people book.</p>
+          <div class="rate"><b>$289</b><span>/ night, typical</span></div>
+        </div>
+      </article>
+      <article class="room">
+        <div class="pic" style="background: linear-gradient(150deg,#3d5049,#7e9184)"></div>
+        <div class="body">
+          <h3>Double Queen</h3>
+          <p>390 sq ft, two queens, deep tub. Good for families or a shared work trip.</p>
+          <div class="rate"><b>$319</b><span>/ night, typical</span></div>
+        </div>
+      </article>
+      <article class="room">
+        <div class="pic" style="background: linear-gradient(150deg,#8e6330,#cfae7e)"></div>
+        <div class="body">
+          <h3>Terrace Suite</h3>
+          <p>620 sq ft, separate sitting room, private terrace over Rainey. Six of them.</p>
+          <div class="rate"><b>$540</b><span>/ night, typical</span></div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="dining" id="halcyon">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Halcyon</div>
+      <h2>The rooftop restaurant, open to everyone.</h2>
+      <p>Not a hotel restaurant that happens to have a view — a restaurant that happens to be on a hotel. Wood-fired, Gulf seafood, a short list that changes when the market does.</p>
+      <p style="margin-top: 14px;">Smart casual. Parties of eight or more need 24 hours' notice to cancel.</p>
+      <div class="cta-row">
+        <button class="btn" data-open-chat>Reserve a table</button>
+      </div>
+    </div>
+    <div>
+      <ul class="hours">
+        <li>Breakfast <span>6:30 – 10:30am, daily</span></li>
+        <li>Lunch <span>11:30am – 2:30pm</span></li>
+        <li>Dinner <span>5:00 – 10:00pm</span></li>
+        <li>Bar <span>4:00pm – midnight</span></li>
+      </ul>
+      <p style="margin-top: 22px; font-size: .93rem; color: #93a89e;">
+        Breakfast isn't included in the room rate unless you booked a package.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="amenities">
+  <div class="wrap">
+    <div class="head">
+      <div class="eyebrow">Amenities</div>
+      <h2>The practical details.</h2>
+    </div>
+    <div class="amen">
+      <div>
+        <svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M12 20h.01"/></svg>
+        <h3>Wi-Fi</h3>
+        <p>Free throughout the property, no login needed.</p>
+      </div>
+      <div>
+        <svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="11" width="18" height="8" rx="2"/><path d="M6 11V8a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v3M7 19v2M17 19v2"/></svg>
+        <h3>Valet parking</h3>
+        <p>$42 per night, in-and-out privileges. No self-park on site.</p>
+      </div>
+      <div>
+        <svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M3 17h18M5 17V9l7-4 7 4v8"/><path d="M9 17v-4h6v4"/></svg>
+        <h3>Airport shuttle</h3>
+        <p>Hourly to Austin-Bergstrom, 5am–11pm. $15 per person.</p>
+      </div>
+      <div>
+        <svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+        <h3>Accessibility</h3>
+        <p>Step-free throughout. Six ADA rooms with roll-in showers, lift to the rooftop.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="events" id="events">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Events</div>
+      <h2>Two meeting rooms and a rooftop.</h2>
+      <p style="color: var(--ink-soft); margin-top: 16px;">Everything over twenty people gets quoted individually — tell us the date and rough headcount and someone from the sales team will pick it up.</p>
+      <ul class="spaces">
+        <li><b>Salon A</b><span>Up to 24, boardroom or theatre. Daylight, blackout available.</span></li>
+        <li><b>Salon B</b><span>Up to 40. Opens onto Salon A for a combined 64.</span></li>
+        <li><b>Terrace</b><span>Up to 120 standing on the rooftop, weather permitting.</span></li>
+      </ul>
+    </div>
+    <div>
+      <div class="cta-row" style="margin-top: 0;">
+        <button class="btn" data-open-chat>Ask about an event</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="close">
+  <div class="wrap">
+    <h2>Ask us anything.</h2>
+    <p>Rooms, tables, parking, the dog policy — the front desk answers day or night, by chat or by voice.</p>
+    <div class="cta-row">
+      <button class="btn" data-open-chat>Start a conversation</button>
+      <a class="btn ghost" style="color: var(--ink); box-shadow: inset 0 0 0 1px var(--line);" href="tel:5125550188">Call (512) 555-0188</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div>© 2026 The Fairmount · 88 Rainey St, Austin, TX 78701 · (512) 555-0188</div>
+    <div class="demo-tag">Demo site — fictional hotel</div>
+  </div>
+</footer>
+
+<script>
+  // Every CTA opens the widget rather than navigating anywhere.
+  document.querySelectorAll("[data-open-chat]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var bubble = document.querySelector(".sp-bubble");
+      if (bubble) bubble.click();
+    });
+  });
+</script>
+<script src="/widget.js"
+        data-name="The Fairmount"
+        data-initials="TF"
+        data-phone="(512) 555-0188"
+        data-accent="#b07d3f"
+        data-nudge="Room, table, or a question?"
+        data-placeholder="Ask about rooms, tables, parking…"></script>
+</body>
+</html>

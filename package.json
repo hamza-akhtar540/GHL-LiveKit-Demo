@@ -12,6 +12,14 @@
     "ghl:smoke": "pnpm --filter @ghl-lk/agent-core smoke",
     "webhook:listen": "pnpm --filter @ghl-lk/agent-core webhook"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@livekit/local-inference",
+      "esbuild",
+      "protobufjs",
+      "sharp"
+    ]
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
