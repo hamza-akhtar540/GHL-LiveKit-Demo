@@ -52,7 +52,7 @@ export function calendarIdFor(resourceId: string): string {
 
   throw new Error(
     `No calendar configured for resource "${resourceId}". Set GHL_CALENDAR_${resourceId.toUpperCase()} ` +
-      `in .env..`,
+      `in .env.`,
   );
 }
 
