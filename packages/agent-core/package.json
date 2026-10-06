@@ -23,6 +23,7 @@
     "scheduler": "tsx scripts/scheduler.ts",
     "social": "tsx scripts/social.ts",
     "admin:write-test": "tsx scripts/admin-write-test.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
     "backfill:booking-contacts": "tsx scripts/backfill-booking-contacts.ts",
     "backfill:conversation-leads": "tsx scripts/backfill-conversation-leads.ts"
   },

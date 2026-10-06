@@ -138,6 +138,15 @@ export interface SocialStatistics {
   breakdowns?: Record<string, unknown>;
 }
 
+/** The accounts posting is restricted to, or undefined when no restriction is set. */
+export function socialAccountFilter(): Set<string> | undefined {
+  const names = (process.env.SOCIAL_ACCOUNTS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return names.length ? new Set(names) : undefined;
+}
+
 export class SocialClient {
   constructor(private readonly client: GhlClient = new GhlClient()) {}
 
@@ -152,10 +161,21 @@ export class SocialClient {
     return res.results?.accounts ?? [];
   }
 
-  /** Accounts we can post to right now, for a given platform. */
+  /**
+   * Accounts we can post to right now, for a given platform.
+   *
+   * `SOCIAL_ACCOUNTS` (comma-separated account names or ids) narrows this to the
+   * accounts that belong to the business. Without it, every connected account
+   * qualifies and the publisher takes the first — and a GHL location commonly has
+   * pages connected for other reasons, so "first" can be someone else's audience.
+   */
   async accountsFor(platform: Platform): Promise<SocialAccount[]> {
+    const allowed = socialAccountFilter();
     return (await this.accounts()).filter(
-      (a) => a.platform === platform && !a.isExpired,
+      (a) =>
+        a.platform === platform &&
+        !a.isExpired &&
+        (!allowed || allowed.has(a.id.toLowerCase()) || allowed.has(a.name.trim().toLowerCase())),
     );
   }
 

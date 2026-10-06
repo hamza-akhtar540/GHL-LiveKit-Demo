@@ -59,6 +59,8 @@ const MIN_PHONE_DIGITS = 8;
 export function identityKeysFor(lead: {
   email?: string;
   phone?: string;
+  /** GHL's own id, carried by DM leads, which usually have no email or phone. */
+  contactId?: string;
 }): string[] {
   const keys: string[] = [];
 
@@ -70,10 +72,15 @@ export function identityKeysFor(lead: {
     if (digits.length >= MIN_PHONE_DIGITS) keys.push(`phone:${digits}`);
   }
 
+  // A DM contact exists in GHL the moment someone messages, before they have
+  // given us anything else. The GHL id is a real identity — and the only one
+  // available — so the lead is kept rather than rejected as unreachable.
+  if (lead.contactId?.trim()) keys.push(`ghl:${lead.contactId.trim()}`);
+
   return keys;
 }
 
-/** A lead with neither is not a lead — there's no way to reply to it. */
-export function isContactable(lead: { email?: string; phone?: string }): boolean {
+/** A lead with no way to reach or identify the person is not a lead. */
+export function isContactable(lead: { email?: string; phone?: string; contactId?: string }): boolean {
   return identityKeysFor(lead).length > 0;
 }

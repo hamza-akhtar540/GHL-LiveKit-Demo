@@ -187,6 +187,21 @@ export function enrichMetaLead(lead: Lead, fieldData: unknown): Lead {
 // ---------------------------------------------------------------------------
 
 /**
+ * Which social inbox a GHL reply came from, if any. The workflow's webhook body
+ * is ours to design, so `channel` is what we ask it to send; the other names are
+ * what GHL's own payloads use, accepted as a fallback.
+ *
+ * Instagram is checked first: its name never contains "facebook", but a Meta
+ * payload can mention both, and a DM that arrived on Instagram is Instagram.
+ */
+function dmChannel(flat: Record<string, unknown>): LeadSource | undefined {
+  const hint = (pick(flat, ["channel", "replyChannel", "messageType", "type", "provider"]) ?? "").toLowerCase();
+  if (hint.includes("instagram")) return "instagram_dm";
+  if (hint.includes("facebook") || hint.includes("messenger") || hint === "fb") return "facebook_dm";
+  return undefined;
+}
+
+/**
  * A GHL workflow webhook — a form submission, or a Facebook/Instagram lead that
  * GHL's own native integration already fetched for us.
  *
@@ -204,11 +219,27 @@ export function parseGhlWebhook(payload: Record<string, unknown>): Lead {
 
   const flat: Record<string, unknown> = Object.assign({}, ...nested, payload);
 
-  const isFacebook = JSON.stringify(payload).toLowerCase().includes("facebook");
-  const source: LeadSource = isFacebook ? "facebook_lead_ad" : "web_form";
+  // A reply trigger's standard payload carries `message` as an object
+  // ({ body, type, ... }), which `pick` skips because it only reads scalars.
+  // Unwrapping it here is what keeps the DM text from being dropped.
+  if (flat.message && typeof flat.message === "object") {
+    const m = flat.message as Record<string, unknown>;
+    flat.message = typeof m.body === "string" ? m.body : "";
+  }
+
+  const dm = dmChannel(flat);
+  const isFacebookAd = !dm && JSON.stringify(payload).toLowerCase().includes("facebook");
+  const source: LeadSource = dm ?? (isFacebookAd ? "facebook_lead_ad" : "web_form");
+  const contactId = pick(flat, ["contactId", "contact_id"]);
 
   const lead = fromFlat(flat, source, {
-    externalId: pick(flat, ["messageId", "id", "submissionId", "leadId"]),
+    // A DM is one lead per PERSON, not per message. GHL's message id changes on
+    // every reply, so keying on it would open a new lead, opportunity and tag
+    // write for each message in a conversation. Keyed on the contact, the first
+    // DM creates the lead and later replies are recognised as the same one.
+    externalId: dm && contactId
+      ? `dm:${contactId}`
+      : pick(flat, ["messageId", "id", "submissionId", "leadId"]),
     attribution: {
       ...(pick(flat, ["formId", "form_id"]) ? { formId: pick(flat, ["formId", "form_id"]) } : {}),
       ...(pick(flat, ["campaignId", "campaign"]) ? { campaign: pick(flat, ["campaignId", "campaign"]) } : {}),
@@ -217,7 +248,6 @@ export function parseGhlWebhook(payload: Record<string, unknown>): Lead {
 
   // GHL already made the contact, so carry its id — that saves an upsert and
   // avoids any chance of creating a second record for the same person.
-  const contactId = pick(flat, ["contactId", "contact_id"]);
   if (contactId) lead.fields.contactId = contactId;
 
   return lead;

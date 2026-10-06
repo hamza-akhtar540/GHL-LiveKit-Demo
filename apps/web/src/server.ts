@@ -19,6 +19,8 @@ import { AccessToken } from "livekit-server-sdk";
 import {
   CrmSync,
   LeadFollowUp,
+  automationEnabled,
+  startAutomation,
   LeadIngestor,
   PgConversationStore,
   PgLeadStore,
@@ -117,11 +119,13 @@ async function readRawBody(request: IncomingMessage): Promise<Buffer> {
  */
 const adminHandler = createAdminHandler({
   cfg: industry,
-  readHtml: (page) => readFile(resolve(publicDir, "admin", `${page}.html`), "utf8"),
+  // The console is the built `apps/admin` app. One shell serves both the login
+  // screen and the console; the app decides which from `/admin/api/me`.
+  readHtml: () => readFile(resolve(publicDir, "admin-app", "index.html"), "utf8"),
   /**
-   * The dashboard's own JS/CSS. Needed because the admin route below claims all
-   * of `/admin/*` before the static fall-through, so these files are otherwise
-   * unreachable however correctly they sit on disk.
+   * The app's bundled JS/CSS under `/admin/assets/`. Needed because the admin
+   * route below claims all of `/admin/*` before the static fall-through, so these
+   * files are otherwise unreachable however correctly they sit on disk.
    *
    * Allow-listed by extension rather than serving any path: this handler is
    * reached before the session check, so a path-traversal here would read
@@ -130,9 +134,9 @@ const adminHandler = createAdminHandler({
   readAsset: async (name) => {
     const ext = extname(name);
     if (ext !== ".js" && ext !== ".css") return undefined;
-    if (name.includes("..") || name.includes("/") || name.includes("\\")) return undefined;
+    if (name.includes("..") || name.includes("\\")) return undefined;
     try {
-      const body = await readFile(resolve(publicDir, "admin", name), "utf8");
+      const body = await readFile(resolve(publicDir, "admin-app", name), "utf8");
       return { body, contentType: MIME[ext]! };
     } catch {
       return undefined;
@@ -332,3 +336,26 @@ function listen(port: number, attemptsLeft: number): void {
 }
 
 listen(PORT, 10);
+
+/**
+ * Follow-ups and social posting run inside this process, so starting the web
+ * server is the only step. `AUTOMATION=off` disables it, and without
+ * DATABASE_URL there is nothing for it to read, so it stays off.
+ *
+ * On by default. The two things that reach real people have their own gates:
+ * email only sends when LEAD_AUTOSEND=on (and to the allowlist), and social posts
+ * are scheduled rather than published, so they can be cancelled in Social
+ * Planner. AUTOMATION_WRITE=off turns the whole thing into a dry run.
+ */
+if (process.env.DATABASE_URL && automationEnabled()) {
+  const write = (process.env.AUTOMATION_WRITE ?? "on").trim().toLowerCase() !== "off";
+  startAutomation({ cfg: industry, write })
+    .then((a) => {
+      console.log(`  automation ${write ? "running" : "in dry run"}:`);
+      for (const j of a.jobs) {
+        console.log(`    ${j.name.padEnd(14)} every ${Math.round(j.everyMs / 60_000)} min${j.note ? `  (${j.note})` : ""}`);
+      }
+      console.log();
+    })
+    .catch((err) => console.error("[automation] failed to start", err));
+}

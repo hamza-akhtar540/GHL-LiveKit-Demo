@@ -12,7 +12,7 @@ import {
 } from "@livekit/agents";
 import * as google from "@livekit/agents-plugin-google";
 import { BackgroundVoiceCancellation } from "@livekit/noise-cancellation-node";
-import { RoomEvent, TrackKind } from "@livekit/rtc-node";
+import { ParticipantKind, RoomEvent, TrackKind } from "@livekit/rtc-node";
 import {
   BookingIndex,
   ConversationRecorder,
@@ -21,7 +21,6 @@ import {
   FileConversationStore,
   GhlBookingStore,
   GhlClient,
-  LeadFollowUp,
   LeadIngestor,
   MemoryBookingStore,
   PgConversationStore,
@@ -34,8 +33,11 @@ import {
   scoreWithBooking,
   slug,
   todayIn,
+  validateContactForm,
+  type ContactField,
 } from "@ghl-lk/agent-core";
 import { config as loadEnv } from "dotenv";
+import { z } from "zod";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -171,23 +173,6 @@ export default defineAgent({
         })
       : undefined;
 
-    /**
-     * The follow-up email, on the same terms as a web-form lead.
-     *
-     * Without this a conversation would get a contact, tags and a score but no
-     * message — the webhook path sends one and this path did not, which is the
-     * kind of inconsistency nobody notices until a customer does. Whether it
-     * actually SENDS is `LEAD_AUTOSEND`'s call, not this file's.
-     */
-    const leadFollowUp = leadStore
-      ? new LeadFollowUp({
-          store: leadStore,
-          conversations,
-          cfg,
-          onLog: (msg: string, data?: Record<string, unknown>) => logger.info(data ?? {}, msg),
-        })
-      : undefined;
-
     async function syncBookedLead(contact: Record<string, string>, code: string): Promise<void> {
       const contactId = contact.contactId;
       if (!crm || !contactId) return;
@@ -313,7 +298,138 @@ export default defineAgent({
         today: todayIn(cfg.business.timezone),
         canBook: true,
         channel,
+        // The widget registers the form; a plain phone line would not.
+        contactForm: true,
       });
+
+    /**
+     * What the guest typed into the on-screen form. These win over anything the
+     * model passes to a booking or enquiry: the model only ever sees them as text
+     * it must copy, and the whole point of the form is that no copy can be wrong.
+     */
+    let verifiedContact: Record<string, string> = {};
+
+    const requestContactDetails = tool({
+      name: "requestContactDetails",
+      description:
+        "Opens a short form on the guest's screen for their name, email and phone. " +
+        "Use it instead of asking for these out loud or in the chat. The guest fills " +
+        "it in and checks it themselves, so what comes back is exactly right — do not " +
+        "read it back. Call it once you need their details, after a line telling them " +
+        "a form is coming.",
+      parameters: z.object({
+        fields: z
+          .array(z.enum(["full_name", "email", "phone"]))
+          .optional()
+          .describe("Which details to ask for. Omit for all three."),
+        reason: z.string().optional().describe("One short sentence shown above the form, e.g. why you need them"),
+      }),
+      execute: async ({ fields, reason }) => {
+        const need: ContactField[] = fields?.length ? fields : ["full_name", "email", "phone"];
+        const guest = [...ctx.room.remoteParticipants.values()].find((p) => p.kind === ParticipantKind.STANDARD);
+        if (!guest) return "The form is unavailable (no screen to show it on). Ask for the details out loud and read each back.";
+
+        let raw: string;
+        try {
+          raw = await ctx.room.localParticipant!.performRpc({
+            destinationIdentity: guest.identity,
+            method: "collectContact",
+            payload: JSON.stringify({ need, reason }),
+            // A person is typing. Long enough to find their phone for the number.
+            responseTimeout: 180_000,
+          });
+        } catch (err) {
+          logger.warn({ err: String(err) }, "contact form could not be shown");
+          return "The form is unavailable right now. Ask for the details out loud and read each back.";
+        }
+
+        let reply: Record<string, unknown>;
+        try {
+          reply = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          return "The form returned something unreadable. Ask for the details out loud and read each back.";
+        }
+        if (reply.cancelled) return "The guest closed the form without filling it in. Carry on, and offer to take the details another way.";
+
+        // Checked again here. The browser's own check is only for the guest's
+        // benefit; this is the one that decides what gets written to the CRM.
+        const checked = validateContactForm(reply, need);
+        if (!checked.ok) {
+          logger.warn({ errors: checked.errors }, "contact form returned invalid values");
+          return "The form returned invalid details. Ask them to open it again, or take the details out loud.";
+        }
+
+        verifiedContact = { ...verifiedContact, ...(checked.values as Record<string, string>) };
+        recorder.patch({ contact: verifiedContact });
+        logger.info({ fields: Object.keys(checked.values) }, "contact details received from the form");
+        return (
+          "Details received from the form, confirmed by the guest: " +
+          Object.entries(checked.values).map(([k, v]) => `${k} = ${v}`).join("; ") +
+          ". Use them exactly as given. Do not ask again or read them back."
+        );
+      },
+    });
+
+    type BookingArgs = {
+      resourceId: string;
+      start: string;
+      contact?: Record<string, string>;
+      details?: Record<string, string>;
+    };
+
+    /**
+     * Shows the guest the whole booking and waits for them to confirm it. Returns
+     * a message for the model when the booking must NOT go ahead, or undefined to
+     * proceed. No screen, or a form that fails to open, proceeds as before — the
+     * review is a safeguard, not a new way for a booking to fail.
+     */
+    const reviewBeforeBooking = async (a: BookingArgs): Promise<string | undefined> => {
+      const guest = [...ctx.room.remoteParticipants.values()].find((p) => p.kind === ParticipantKind.STANDARD);
+      if (!guest) return undefined;
+
+      const when = new Date(a.start);
+      const resource = cfg.resources.find((r) => r.id === a.resourceId);
+      const rows = [
+        { label: "Booking", value: resource?.label ?? a.resourceId },
+        {
+          label: "When",
+          value: Number.isNaN(when.getTime())
+            ? a.start
+            : when.toLocaleString("en-GB", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                hour: "numeric",
+                minute: "2-digit",
+                timeZone: cfg.business.timezone,
+              }),
+        },
+        { label: "Name", value: a.contact?.full_name ?? "" },
+        { label: "Email", value: a.contact?.email ?? "" },
+        { label: "Phone", value: a.contact?.phone ?? "" },
+        ...Object.entries(a.details ?? {}).map(([k, v]) => ({ label: k.replace(/_/g, " "), value: String(v) })),
+      ];
+
+      let raw: string;
+      try {
+        raw = await ctx.room.localParticipant!.performRpc({
+          destinationIdentity: guest.identity,
+          method: "reviewBooking",
+          payload: JSON.stringify({ rows }),
+          responseTimeout: 180_000,
+        });
+      } catch (err) {
+        logger.warn({ err: String(err) }, "booking review could not be shown; booking without it");
+        return undefined;
+      }
+
+      try {
+        if ((JSON.parse(raw) as { confirmed?: boolean }).confirmed === true) return undefined;
+      } catch {
+        // Unreadable reply is treated as "not confirmed" — never book on a guess.
+      }
+      return "Not booked — the guest did not confirm on the review screen. Ask what they would like to change, then call createBooking again.";
+    };
 
     const agent = Agent.create({
       // Starts in text mode. Spoken-delivery rules ("say forty-two dollars, not
@@ -343,9 +459,20 @@ export default defineAgent({
           name: t.name,
           description: t.description,
           parameters: t.parameters,
-          execute: async (args: unknown) => t.execute(args),
+          execute: async (args: unknown) => {
+            // Anything the form returned overrides what the model passed in.
+            if ((t.name === "createBooking" || t.name === "recordEnquiry") && args && typeof args === "object") {
+              const a = args as { contact?: Record<string, string> };
+              a.contact = { ...(a.contact ?? {}), ...verifiedContact };
+            }
+            if (t.name === "createBooking" && args && typeof args === "object") {
+              const declined = await reviewBeforeBooking(args as BookingArgs);
+              if (declined) return declined;
+            }
+            return t.execute(args);
+          },
         }),
-      ),
+      ).concat([requestContactDetails]),
     });
 
     const session = new AgentSession({
@@ -607,17 +734,12 @@ export default defineAgent({
         "conversation ingested as a lead",
       );
 
-      // Same treatment a web-form lead gets. `duplicate` means this session was
-      // already ingested, so re-sending would be a second first-touch.
-      if (leadFollowUp && result.status !== "duplicate" && result.status !== "rejected") {
-        const sent = await leadFollowUp.send({
-          leadId: result.leadId,
-          contactId: result.contactId,
-          conversationId: result.conversationId ?? recorderId,
-          recipient: email,
-        });
-        logger.info({ id: recorderId, status: sent.status, reason: sent.reason }, "follow-up");
-      }
+      // No email is sent here. A web-form lead is a stranger, so it gets a
+      // `new_lead` first touch straight away. This person was just talking to us,
+      // and `new_lead` tells the model to assume they have NOT spoken to anyone —
+      // which wrote an email ignoring the conversation they had a minute ago. The
+      // automation's abandoned sweep sends the 1h / 24h / 3d follow-ups instead,
+      // each composed from this transcript.
     }
 
     // Voice and text share this one session. That is the whole trick behind

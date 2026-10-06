@@ -97,61 +97,67 @@ export class SocialPublisher {
         continue;
       }
 
-      const account = accounts[0]!;
+      // Every connected account on the platform, not just the first. One post per
+      // account rather than one post addressed to several: each stays separately
+      // editable and deletable, and its engagement is recorded against the
+      // account that actually earned it — a combined post could do neither.
+      // `SOCIAL_ACCOUNTS` narrows this when a location has pages that aren't the
+      // business's own.
+      for (const account of accounts) {
+        try {
+          const created = await this.client.createPost({
+            accountIds: [account.id],
+            text: generated.text,
+            status,
+            scheduleDate: opts.scheduleDate,
+          });
 
-      try {
-        const created = await this.client.createPost({
-          accountIds: [account.id],
-          text: generated.text,
-          status,
-          scheduleDate: opts.scheduleDate,
-        });
+          // Recorded even as a draft, so the topic isn't picked again next run and
+          // so there's a row to attach engagement to once it goes live.
+          await store.recordPost({
+            id: created.id ?? `local-${platform}-${account.id}-${Date.now()}`,
+            industry: cfg.id,
+            platform,
+            accountId: account.id,
+            topic: generated.topic,
+            askedBy: generated.askedBy,
+            text: generated.text,
+            status: created.status ?? status,
+            postedAt: status === "published" ? new Date().toISOString() : opts.scheduleDate,
+          });
 
-        // Recorded even as a draft, so the topic isn't picked again next run and
-        // so there's a row to attach engagement to once it goes live.
-        await store.recordPost({
-          id: created.id ?? `local-${platform}-${Date.now()}`,
-          industry: cfg.id,
-          platform,
-          accountId: account.id,
-          topic: generated.topic,
-          askedBy: generated.askedBy,
-          text: generated.text,
-          status: created.status ?? status,
-          postedAt: status === "published" ? new Date().toISOString() : opts.scheduleDate,
-        });
-
-        onLog("post created", { platform, status: created.status, topic: idea.topic });
-        results.push({
-          platform,
-          topic: generated.topic,
-          askedBy: generated.askedBy,
-          text: generated.text,
-          status: created.status ?? status,
-          postId: created.id,
-        });
-      } catch (err) {
-        onLog("post submit failed", { platform, err: String(err) });
-        // Still recorded, so the copy isn't lost with the error.
-        await store.recordPost({
-          id: `failed-${platform}-${Date.now()}`,
-          industry: cfg.id,
-          platform,
-          accountId: account.id,
-          topic: generated.topic,
-          askedBy: generated.askedBy,
-          text: generated.text,
-          status: "failed",
-          error: String(err).slice(0, 400),
-        });
-        results.push({
-          platform,
-          topic: generated.topic,
-          askedBy: generated.askedBy,
-          text: generated.text,
-          status: "failed",
-          error: String(err),
-        });
+          onLog("post created", { platform, account: account.name, status: created.status, topic: idea.topic });
+          results.push({
+            platform,
+            topic: generated.topic,
+            askedBy: generated.askedBy,
+            text: generated.text,
+            status: created.status ?? status,
+            postId: created.id,
+          });
+        } catch (err) {
+          onLog("post submit failed", { platform, account: account.name, err: String(err) });
+          // Still recorded, so the copy isn't lost with the error.
+          await store.recordPost({
+            id: `failed-${platform}-${account.id}-${Date.now()}`,
+            industry: cfg.id,
+            platform,
+            accountId: account.id,
+            topic: generated.topic,
+            askedBy: generated.askedBy,
+            text: generated.text,
+            status: "failed",
+            error: String(err).slice(0, 400),
+          });
+          results.push({
+            platform,
+            topic: generated.topic,
+            askedBy: generated.askedBy,
+            text: generated.text,
+            status: "failed",
+            error: String(err),
+          });
+        }
       }
     }
 

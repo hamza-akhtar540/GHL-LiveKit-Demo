@@ -1,5 +1,6 @@
 import type { IndustryConfig } from "../industries/types.js";
 import type { Conversation } from "../conversation/types.js";
+import { geminiJson } from "../llm/gemini.js";
 
 /**
  * Turns a stored conversation into a follow-up email that sounds like the
@@ -116,29 +117,8 @@ function buildPrompt(cfg: IndustryConfig, convo: Conversation, trigger: Trigger)
  * caller can swap providers by passing a different `generate`. Model and key
  * come from env, same as the worker's fallback path.
  */
-async function geminiGenerate(prompt: string): Promise<string> {
-  const key = process.env.GOOGLE_API_KEY;
-  if (!key) throw new Error("GOOGLE_API_KEY not set — needed to compose email");
-  const model = process.env.EMAIL_MODEL ?? process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7, responseMimeType: "application/json" },
-      }),
-    },
-  );
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = (await res.json()) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini returned no text");
-  return text;
+function geminiGenerate(prompt: string): Promise<string> {
+  return geminiJson(prompt, { purpose: "composing email", temperature: 0.7, model: process.env.EMAIL_MODEL });
 }
 
 export async function composeEmail(

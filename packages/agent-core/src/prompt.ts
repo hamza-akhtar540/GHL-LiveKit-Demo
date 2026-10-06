@@ -14,6 +14,13 @@ export interface PromptOptions {
    */
   canBook: boolean;
   /**
+   * True when the caller is on a screen that can show a form (the web widget).
+   * Then name, email and phone come from a form the guest fills in, not from the
+   * model hearing or reading them — the one way those three details cannot be
+   * wrong. False on a plain phone line, where they have to be spoken.
+   */
+  contactForm?: boolean;
+  /**
    * Spoken delivery guidance is added only for `voice`. It must not be on by
    * default: the same session serves chat, and a written "um" reads as sloppy
    * rather than natural. The worker swaps this in when a microphone actually
@@ -144,6 +151,22 @@ export function buildInstructions(cfg: IndustryConfig, opts: PromptOptions): str
     "# Contact details",
     "Needed before any booking is confirmed. Ask once they've shown real intent —",
     "not in the first breath, and never after you've already signed off.",
+    ...(opts.contactForm
+      ? [
+          "The guest is on a screen, so DO NOT ask them to say or type their name,",
+          "email or phone. Call requestContactDetails: it opens a short form on their",
+          "screen that they fill in and check themselves, so nothing can be misheard.",
+          "Say one short line first (\"I'll bring up a quick form so we get your",
+          "details exactly right\") and then call it.",
+          "- What it returns is final. Do not read the details back or ask them to",
+          "  confirm; the form already did. Use them exactly as returned.",
+          "- If they close the form, say that's fine and offer to carry on without it",
+          "  or to ask for the details out loud instead.",
+          "- If it says the form is unavailable, fall back to asking, and read each",
+          "  detail back as described under delivery.",
+          "Details wanted:",
+        ]
+      : []),
     ...fields(contact),
     "",
     "# Booking",
@@ -153,6 +176,14 @@ export function buildInstructions(cfg: IndustryConfig, opts: PromptOptions): str
           "Offer two or three concrete options — a day and a clock time, like",
           "'Thursday at 2pm'. Not a list of ten.",
           "Only say it's confirmed after createBooking succeeds, then give the reference.",
+          ...(opts.contactForm
+            ? [
+                "Calling createBooking puts a review screen in front of the guest, and it",
+                "only books once they press Confirm. So don't read the booking back first;",
+                "say one line like 'Let me pull up your booking to check.' If it returns",
+                "'not confirmed', ask what they'd like to change.",
+              ]
+            : []),
           "If a time is gone, say so plainly and offer the next one.",
           "",
           "## An existing booking",

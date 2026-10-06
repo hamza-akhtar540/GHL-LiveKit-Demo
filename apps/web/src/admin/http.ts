@@ -12,9 +12,11 @@ import {
   SocialPublisher,
   SocialStore,
   WRITE_RISK,
+  autosendMode,
   type IndustryConfig,
 } from "@ghl-lk/agent-core";
 import { checkCredentials, clearCookie, createSession, readSessionCookie, sessionCookie, verifySession } from "./auth.js";
+import { ADMIN_ONLY_READS, maskForViewer } from "./access.js";
 
 /**
  * The admin dashboard's HTTP surface. Same shape as `leads/http.ts` in
@@ -341,6 +343,7 @@ export function createAdminHandler(deps: AdminDeps) {
             limit: limitOf(c.req) ?? 50,
             offset: Number(c.req.query.offset ?? 0) || 0,
             status: c.req.query.status,
+            source: c.req.query.source,
             sort: c.req.query.sort,
             dir: c.req.query.dir,
           })
@@ -678,13 +681,14 @@ export function createAdminHandler(deps: AdminDeps) {
       const email = String(req.body?.email ?? "");
       const password = String(req.body?.password ?? "");
 
-      if (!checkCredentials(email, password)) {
+      const user = checkCredentials(email, password);
+      if (!user) {
         onLog("admin login failed", { email });
         return json(401, { ok: false, error: "invalid email or password" });
       }
 
-      onLog("admin login", { email });
-      return json(200, { ok: true }, { "set-cookie": sessionCookie(createSession()) });
+      onLog("admin login", { email: user.email, role: user.role });
+      return json(200, { ok: true, user }, { "set-cookie": sessionCookie(createSession(user)) });
     }
 
     if (req.pathname === "/admin/logout" && req.method === "POST") {
@@ -692,12 +696,15 @@ export function createAdminHandler(deps: AdminDeps) {
     }
 
     // --- everything else needs a valid session ------------------------------
-    const authed = verifySession(readSessionCookie(req.cookie));
+    const session = verifySession(readSessionCookie(req.cookie));
+    const authed = session !== null;
 
     // The page shell itself: unauth'd gets the login screen instead of a 401,
     // since this is meant to be opened directly in a browser tab.
     if (req.pathname === "/admin" && req.method === "GET") {
-      const body = await deps.readHtml(authed ? "shell" : "login");
+      // The same shell either way: it holds no data, and the app decides between
+      // its login screen and the console from `/admin/api/me`.
+      const body = await deps.readHtml("shell");
       return {
         status: 200,
         headers: {
@@ -716,7 +723,10 @@ export function createAdminHandler(deps: AdminDeps) {
     // Must sit before the /admin/api/ gate below, which 404s everything else.
     if (req.method === "GET" && deps.readAsset && !req.pathname.startsWith("/admin/api/")) {
       const name = req.pathname.slice("/admin/".length);
-      if (name && !name.includes("/")) {
+      // One level of nesting is allowed for the bundler's `assets/` folder and
+      // nothing else, and never `..`: this branch runs before the session check.
+      const nested = /^assets\/[\w.-]+$/.test(name);
+      if (name && !name.includes("..") && (nested || !name.includes("/"))) {
         const asset = await deps.readAsset(name);
         if (asset) {
           return {
@@ -740,8 +750,33 @@ export function createAdminHandler(deps: AdminDeps) {
     if (!authed) return json(401, { ok: false, error: "not authenticated" });
 
     const section = req.pathname.slice("/admin/api/".length);
+
+    if (section === "me" && req.method === "GET") {
+      return json(200, {
+        user: session,
+        capabilities: { db: hasDb, ghl: hasGhl, live: !!live },
+        business: { name: deps.cfg.business.name, industry: deps.cfg.id, timezone: deps.cfg.business.timezone },
+        // Shown in the console so nobody has to guess why an email is "held".
+        autosend: autosendMode(),
+        automation: (process.env.AUTOMATION ?? "on").toLowerCase() !== "off",
+      });
+    }
+
     const matched = matchRoute(routes, req.method, section);
     if (!matched) return json(404, { ok: false, error: `unknown admin route: ${req.method} ${section}` });
+
+    // Role gate. Every write is admin-only, as are the reads that return raw
+    // customer content. Checked before the capability gate so a viewer learns
+    // nothing about the deployment from the difference in error messages.
+    if (session!.role !== "admin") {
+      if (matched.route.method !== "GET") {
+        onLog("admin write refused", { section, user: session!.email, role: session!.role });
+        return json(403, { ok: false, error: "your account is read-only" });
+      }
+      if (ADMIN_ONLY_READS.has(matched.route.path)) {
+        return json(403, { ok: false, error: "this view contains customer content and is limited to admins" });
+      }
+    }
 
     // Capability gate: reported per-route, so a GHL-only deployment can still
     // edit contacts and a database-only one can still read conversations.
@@ -758,7 +793,7 @@ export function createAdminHandler(deps: AdminDeps) {
     }
 
     try {
-      return await matched.route.handle({
+      const res = await matched.route.handle({
         req,
         params: matched.params,
         data: data!,
@@ -767,6 +802,7 @@ export function createAdminHandler(deps: AdminDeps) {
         publisher,
         onLog,
       });
+      return session!.role === "admin" ? res : maskForViewer(res);
     } catch (err) {
       // A write that could not happen must say so loudly. AdminWriteError
       // carries an operator-readable reason and its own status; anything else is

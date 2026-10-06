@@ -22,6 +22,24 @@ const SESSION_COOKIE = "gl_admin";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12h — a working day, then re-auth
 
 /**
+ * Two roles, deliberately.
+ *
+ *  - `admin`  — everything, including every write and full customer content.
+ *  - `viewer` — read-only. Every write is refused, emails and phone numbers are
+ *    masked, and routes that return raw customer content (transcripts, email
+ *    bodies, original webhook payloads, a contact's full record) are refused.
+ *
+ * Enforced server-side in `http.ts`. The UI hides what a viewer cannot do, but
+ * that is courtesy: hiding a button is not access control.
+ */
+export type Role = "admin" | "viewer";
+
+export interface SessionUser {
+  email: string;
+  role: Role;
+}
+
+/**
  * Random per process when unset. That means restarts invalidate sessions, which
  * is the safe direction to fail: an unset secret can't become a predictable
  * signing key that survives a deploy.
@@ -32,35 +50,54 @@ function sign(payload: string): string {
   return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
-/** `<expiry>.<signature>` — no user data in the cookie, nothing to leak. */
-export function createSession(): string {
-  const expires = String(Date.now() + SESSION_TTL_MS);
-  return `${expires}.${sign(expires)}`;
+/**
+ * `<expiry>.<role>.<email>.<signature>`. The role is inside the signed payload,
+ * so it cannot be edited in the cookie to promote a viewer to an admin.
+ */
+export function createSession(user: SessionUser): string {
+  const payload = `${Date.now() + SESSION_TTL_MS}.${user.role}.${Buffer.from(user.email).toString("base64url")}`;
+  return `${payload}.${sign(payload)}`;
 }
 
-export function verifySession(token?: string): boolean {
-  if (!token) return false;
-  const [expires, signature] = token.split(".");
-  if (!expires || !signature) return false;
+export function verifySession(token?: string): SessionUser | null {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 4) return null;
+  const [expires, role, email, signature] = parts as [string, string, string, string];
 
-  if (Number(expires) < Date.now()) return false;
+  if (Number(expires) < Date.now()) return null;
+  if (role !== "admin" && role !== "viewer") return null;
 
-  const expected = sign(expires);
-  if (expected.length !== signature.length) return false;
+  const expected = sign(`${expires}.${role}.${email}`);
+  if (expected.length !== signature.length) return null;
   // Constant-time, so a wrong cookie can't be brute-forced by timing.
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  if (!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return null;
+
+  return { email: Buffer.from(email, "base64url").toString("utf8"), role };
 }
 
-export function checkCredentials(email: string, password: string): boolean {
-  const expectedEmail = process.env.ADMIN_EMAIL;
-  const expectedPassword = process.env.ADMIN_PASSWORD;
-  if (!expectedEmail || !expectedPassword) return false;
+/**
+ * Accounts come from the environment: `ADMIN_EMAIL` / `ADMIN_PASSWORD` for the
+ * admin, and an optional `VIEWER_EMAIL` / `VIEWER_PASSWORD` for the read-only
+ * account. No user table — two accounts do not need a database, and this keeps
+ * the console usable when Postgres is down.
+ */
+export function checkCredentials(email: string, password: string): SessionUser | null {
+  const accounts: { role: Role; email?: string; password?: string }[] = [
+    { role: "admin", email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD },
+    { role: "viewer", email: process.env.VIEWER_EMAIL, password: process.env.VIEWER_PASSWORD },
+  ];
 
-  // Compare both even when the email is wrong, so response time doesn't reveal
-  // which field failed.
-  const emailOk = safeEqual(email.trim().toLowerCase(), expectedEmail.trim().toLowerCase());
-  const passwordOk = safeEqual(password, expectedPassword);
-  return emailOk && passwordOk;
+  let match: SessionUser | null = null;
+  for (const acct of accounts) {
+    if (!acct.email || !acct.password) continue;
+    // Every configured account is compared in full, so response time doesn't
+    // reveal which field failed or which account exists.
+    const emailOk = safeEqual(email.trim().toLowerCase(), acct.email.trim().toLowerCase());
+    const passwordOk = safeEqual(password, acct.password);
+    if (emailOk && passwordOk && !match) match = { email: acct.email.trim(), role: acct.role };
+  }
+  return match;
 }
 
 function safeEqual(a: string, b: string): boolean {

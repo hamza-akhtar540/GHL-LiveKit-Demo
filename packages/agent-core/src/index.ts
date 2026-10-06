@@ -83,3 +83,10 @@ export type { WriteRisk, AdminWriterDeps } from "./admin/writer.js";
 export { LiveSessions } from "./admin/live-sessions.js";
 export type { LiveRoom, LiveParticipant } from "./admin/live-sessions.js";
 export { nextOccurrence, weekdayIn } from "./social/schedule-time.js";
+
+export { startAutomation, automationEnabled } from "./automation/runner.js";
+export type { Automation, AutomationOptions } from "./automation/runner.js";
+export { runAbandonedFollowUps, dueTrigger } from "./automation/abandoned.js";
+export { syncSocialDms } from "./social/dm-sync.js";
+export { validateContactForm, CONTACT_FIELDS } from "./contact-form.js";
+export type { ContactField, ContactCheck } from "./contact-form.js";

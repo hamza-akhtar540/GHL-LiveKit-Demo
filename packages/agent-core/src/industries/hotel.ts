@@ -15,7 +15,7 @@ export const hotel: IndustryConfig = {
     blurb:
       "A 96-room boutique hotel on Rainey Street, walking distance to the convention centre. " +
       "Rooftop restaurant, Halcyon, open to the public.",
-    timezone: "America/Chicago",
+    timezone: "Asia/Karachi",
   },
   services: [
     "Room reservations",

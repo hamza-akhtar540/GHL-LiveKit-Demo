@@ -90,8 +90,12 @@ export class LeadIngestor {
       return { leadId: id, status: "created", tags: [], reason: "awaiting Meta field data" };
     }
 
+    // A DM lead arrives with GHL's contact id and often nothing else.
+    const ghlContactId = lead.fields.contactId?.trim() || undefined;
+    const identity = { email: lead.email, phone: lead.phone, contactId: ghlContactId };
+
     // --- nothing to reply to is not a lead ---------------------------------
-    if (!isContactable(lead)) {
+    if (!isContactable(identity)) {
       await store.update(id, {
         status: "rejected",
         reason: "no email or phone",
@@ -101,7 +105,7 @@ export class LeadIngestor {
       return { leadId: id, status: "rejected", tags: [], reason: "no email or phone" };
     }
 
-    const keys = identityKeysFor(lead);
+    const keys = identityKeysFor(identity);
     const tags = tagsFor(lead);
 
     // --- who is this? ------------------------------------------------------
@@ -139,7 +143,12 @@ export class LeadIngestor {
     }
 
     // --- create or update the contact (the one fatal step) -----------------
-    if (crm) {
+    // GHL already made this contact (a DM, or a workflow that carried its id), so
+    // there is nothing to create — and with no email or phone there is nothing to
+    // upsert on either; GHL's upsert needs one of them.
+    if (!contactId && ghlContactId && !lead.email && !lead.phone) contactId = ghlContactId;
+
+    if (crm && !(ghlContactId && !lead.email && !lead.phone)) {
       if (!contactId) {
         // No defaultFirstName here on purpose. GHL's upsert matches on
         // email/phone, so passing "Guest" for a nameless lead would rename a
@@ -203,14 +212,20 @@ export class LeadIngestor {
     // --- a conversation, so existing follow-up machinery picks it up -------
     let conversationId: string | undefined;
     if (conversations) {
-      conversationId = lead.source === "chat" || lead.source === "voice"
-        ? lead.externalId
-        : `lead-${id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+      conversationId = lead.conversationRef
+        ?? (lead.source === "chat" || lead.source === "voice"
+          ? lead.externalId
+          : `lead-${id.replace(/[^a-zA-Z0-9_-]/g, "_")}`);
 
       if (conversationId) {
         const convo = await conversations.open(conversationId, {
           industry: cfg.id,
-          channel: lead.source === "voice" ? "voice" : lead.source === "chat" ? "chat" : "email",
+          channel:
+            lead.source === "voice" ? "voice"
+            : lead.source === "chat" ? "chat"
+            : lead.source === "instagram_dm" ? "instagram"
+            : lead.source === "facebook_dm" ? "facebook"
+            : "email",
         });
         // Only seed when empty — a retry must not duplicate the opening turn.
         if (!convo.messages.length && lead.message) {

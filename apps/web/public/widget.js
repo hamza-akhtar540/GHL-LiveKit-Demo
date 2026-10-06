@@ -125,6 +125,37 @@
 }
 .sp-voice:hover { border-color: var(--accent); color: var(--accent); }
 .sp-voice svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+.sp-form {
+  position: absolute; inset: 0; z-index: 5; background: rgba(20,32,46,.55);
+  display: flex; align-items: flex-end; animation: sp-fade .18s ease both;
+}
+@keyframes sp-fade { from { opacity: 0; } }
+.sp-card {
+  width: 100%; background: var(--bg); border-radius: 16px 16px 0 0; padding: 18px 18px 16px;
+  max-height: 100%; overflow-y: auto; animation: sp-up .22s ease both;
+}
+@keyframes sp-up { from { transform: translateY(24px); opacity: .6; } }
+.sp-card h3 { margin: 0 0 3px; font-size: 17px; }
+.sp-card .sp-sub { margin: 0 0 14px; color: var(--muted); font-size: 13.5px; }
+.sp-field { margin-bottom: 11px; }
+.sp-field label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 4px; color: var(--muted); }
+.sp-field input {
+  width: 100%; border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  font: inherit; color: inherit; background: var(--bg); outline: none;
+}
+.sp-field input:focus { border-color: var(--accent); }
+.sp-field.bad input { border-color: #d64545; }
+.sp-field.ok input { border-color: #46a373; }
+.sp-err { color: #d64545; font-size: 12.5px; min-height: 0; margin-top: 3px; }
+.sp-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+.sp-actions .sp-btn { flex: 1; }
+.sp-link { background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit; padding: 8px 10px; }
+.sp-link:hover { color: var(--ink); }
+.sp-review { margin: 0 0 4px; border: 1.5px solid var(--line); border-radius: 12px; padding: 4px 14px; }
+.sp-review dt { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-top: 9px; }
+.sp-review dd { margin: 1px 0 9px; font-size: 14.5px; word-break: break-word; }
+.sp-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
 .sp-hide { display: none !important; }
 @media (max-width: 460px) {
   .sp-w { right: 12px; bottom: 12px; }
@@ -271,6 +302,198 @@
     scroll();
   }
 
+
+  // ---- contact-details form -------------------------------------------------
+  //
+  // The agent calls the `collectContact` RPC when it needs a name, email or phone
+  // number. A name, an email address and a phone number are what speech
+  // recognition and hurried typing both get wrong, and a wrong one means a
+  // confirmation that goes nowhere and a lead nobody can reach. A field the
+  // guest typed and checked themselves cannot be misheard.
+  //
+  // These rules mirror `contact-form.ts` on the server, which re-checks
+  // everything — this copy is only here for instant feedback.
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  function cleanPhone(v) {
+    var p = String(v || "").trim().replace(/[\s().-]/g, "");
+    return p.indexOf("00") === 0 ? "+" + p.slice(2) : p;
+  }
+
+  var RULES = {
+    full_name: {
+      label: "Full name", type: "text", auto: "name", ph: "As it should appear on the booking",
+      check: function (v) {
+        var n = v.trim().replace(/\s+/g, " ");
+        return n.length >= 2 && n.length <= 80 && /\p{L}/u.test(n) ? "" : "Enter your full name";
+      },
+    },
+    email: {
+      label: "Email", type: "email", auto: "email", ph: "name@example.com",
+      check: function (v) { return EMAIL_RE.test(v.trim()) ? "" : "Enter a valid email address"; },
+    },
+    phone: {
+      label: "Phone", type: "tel", auto: "tel", ph: "+44 7700 900123",
+      check: function (v) { return /^\+?\d{8,15}$/.test(cleanPhone(v)) ? "" : "Enter a phone number, with country code"; },
+    },
+  };
+
+  var formEl = null;
+  var formResolve = null;
+
+  function closeForm(result) {
+    if (formEl) { formEl.remove(); formEl = null; }
+    if (formResolve) { var r = formResolve; formResolve = null; r(result); }
+  }
+
+  function collectContact(payload) {
+    // A second request replaces the first rather than stacking two forms.
+    if (formEl) closeForm({ cancelled: true });
+
+    var need = (payload.need || []).filter(function (k) { return RULES[k]; });
+    if (!need.length) need = ["full_name", "email", "phone"];
+
+    return new Promise(function (resolve) {
+      formResolve = resolve;
+      var overlay = el("div", "sp-form");
+      var card = el("form", "sp-card");
+      card.noValidate = true;
+      card.append(el("h3", null, "Your details"));
+      var sub = el("p", "sp-sub");
+      sub.textContent = payload.reason || "Please check each one — this is exactly what we'll use for your confirmation.";
+      card.append(sub);
+
+      var fields = []; // { key, input, wrap, err, check() }
+
+      function addField(key, label, rule, matchOf) {
+        var wrap = el("div", "sp-field");
+        var id = "sp-f-" + key + Math.random().toString(36).slice(2, 6);
+        var lab = el("label"); lab.htmlFor = id; lab.textContent = label;
+        var inp = el("input"); inp.id = id; inp.type = rule.type; inp.placeholder = rule.ph || "";
+        inp.autocomplete = rule.auto || "off"; inp.spellcheck = false;
+        if (key === "email" || key === "email2") { inp.autocapitalize = "off"; }
+        var err = el("div", "sp-err");
+        wrap.append(lab, inp, err);
+        card.append(wrap);
+        var f = { key: key, input: inp, wrap: wrap, err: err, touched: false };
+        f.check = function () {
+          var msg = matchOf
+            ? (inp.value.trim().toLowerCase() === matchOf.input.value.trim().toLowerCase() && inp.value.trim() ? "" : "The two emails don't match")
+            : rule.check(inp.value);
+          return msg;
+        };
+        f.paint = function () {
+          var msg = f.check();
+          wrap.className = "sp-field" + (f.touched ? (msg ? " bad" : " ok") : "");
+          err.textContent = f.touched ? msg : "";
+          return !msg;
+        };
+        inp.addEventListener("input", function () { f.touched = f.touched || inp.value.length > 2; refresh(); });
+        inp.addEventListener("blur", function () { f.touched = true; f.paint(); refresh(); });
+        fields.push(f);
+        return f;
+      }
+
+      var emailField = null;
+      need.forEach(function (key) {
+        var f = addField(key, RULES[key].label, RULES[key]);
+        if (key === "email") emailField = f;
+      });
+      // Typing an address twice is the cheapest way to make a typo impossible.
+      if (emailField) {
+        addField("email2", "Confirm email", { type: "email", auto: "off", ph: "Type it once more", check: null }, emailField);
+      }
+
+      var actions = el("div", "sp-actions");
+      var ok = el("button", "sp-btn", "Confirm details");
+      ok.type = "submit"; ok.disabled = true;
+      var skip = el("button", "sp-link", "Not now");
+      skip.type = "button";
+      actions.append(ok, skip);
+      card.append(actions);
+      card.append(el("div", "sp-note", "We only use these to confirm your booking and reply to you."));
+
+      function refresh() {
+        ok.disabled = !fields.every(function (f) { return !f.check(); });
+        // The confirm box re-judges itself whenever the first email changes.
+        fields.forEach(function (f) { if (f.touched) f.paint(); });
+      }
+
+      card.addEventListener("submit", function (e) {
+        e.preventDefault();
+        fields.forEach(function (f) { f.touched = true; });
+        refresh();
+        if (ok.disabled) {
+          var firstBad = fields.filter(function (f) { return f.check(); })[0];
+          if (firstBad) firstBad.input.focus();
+          return;
+        }
+        var out = { ok: true };
+        fields.forEach(function (f) {
+          if (f.key === "email2") return;
+          out[f.key] = f.key === "phone" ? cleanPhone(f.input.value) : f.input.value.trim();
+        });
+        say("sys", "Details confirmed ✓");
+        closeForm(out);
+      });
+      skip.onclick = function () { closeForm({ cancelled: true }); };
+
+      overlay.append(card);
+      overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) closeForm({ cancelled: true }); });
+      panel.append(overlay);
+      formEl = overlay;
+      panel.classList.remove("sp-hide");
+      bubble.classList.add("sp-hide");
+      fields[0].input.focus();
+    });
+  }
+
+  // ---- booking review -------------------------------------------------------
+  //
+  // Shown by the agent just before it books. The guest sees the whole booking in
+  // one place — what, when, and who it is for — and nothing is reserved until
+  // they press Confirm. "Change something" sends them back to the conversation.
+  function reviewBooking(payload) {
+    if (formEl) closeForm({ cancelled: true });
+    return new Promise(function (resolve) {
+      formResolve = resolve;
+      var overlay = el("div", "sp-form");
+      var card = el("div", "sp-card");
+      card.append(el("h3", null, "Review your booking"));
+      var sub = el("p", "sp-sub");
+      sub.textContent = "Nothing is reserved until you confirm.";
+      card.append(sub);
+
+      var list = el("dl", "sp-review");
+      (payload.rows || []).forEach(function (r) {
+        if (!r || !r.value) return;
+        var dt = el("dt"); dt.textContent = r.label;
+        var dd = el("dd"); dd.textContent = r.value;
+        list.append(dt, dd);
+      });
+      card.append(list);
+
+      var actions = el("div", "sp-actions");
+      var ok = el("button", "sp-btn", "Confirm booking");
+      ok.type = "button";
+      var change = el("button", "sp-link", "Change something");
+      change.type = "button";
+      actions.append(ok, change);
+      card.append(actions);
+
+      ok.onclick = function () { say("sys", "Booking confirmed ✓"); closeForm({ confirmed: true }); };
+      change.onclick = function () { closeForm({ confirmed: false }); };
+      overlay.addEventListener("mousedown", function (e) { if (e.target === overlay) closeForm({ confirmed: false }); });
+
+      overlay.append(card);
+      panel.append(overlay);
+      formEl = overlay;
+      panel.classList.remove("sp-hide");
+      bubble.classList.add("sp-hide");
+      ok.focus();
+    });
+  }
+
   async function connect() {
     if (room || connecting) return;
     connecting = true;
@@ -300,7 +523,20 @@
         }
       });
 
+      room.registerRpcMethod("collectContact", async function (data) {
+        var payload = {};
+        try { payload = JSON.parse(data.payload || "{}"); } catch (e) { /* ask for everything */ }
+        return JSON.stringify(await collectContact(payload));
+      });
+
+      room.registerRpcMethod("reviewBooking", async function (data) {
+        var payload = {};
+        try { payload = JSON.parse(data.payload || "{}"); } catch (e) { /* show what we have */ }
+        return JSON.stringify(await reviewBooking(payload));
+      });
+
       room.on(LK.RoomEvent.Disconnected, function () {
+        closeForm({ cancelled: true });
         setStatus("Disconnected");
         room = null;
         voiceOn = false;
@@ -450,6 +686,8 @@
     renderSegment: renderSegment,
     stream: stream,
     open: open,
+    collectContact: collectContact,
+    reviewBooking: reviewBooking,
     get room() { return room; },
   };
 })();

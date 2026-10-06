@@ -10,7 +10,7 @@
  * exact same interface, no caller changes.
  */
 
-export type Channel = "voice" | "chat" | "email";
+export type Channel = "voice" | "chat" | "email" | "instagram" | "facebook";
 
 /**
  * Who produced a turn.

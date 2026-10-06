@@ -102,6 +102,26 @@ const header = (h: LeadHttpRequest["headers"], name: string): string | undefined
   return Array.isArray(v) ? v[0] : v;
 };
 
+/**
+ * Shared-secret check for the GHL workflow webhook.
+ *
+ * GHL's Custom Webhook action can send arbitrary headers, so the workflow sends
+ * `x-webhook-secret: <GHL_WEBHOOK_SECRET>`. Without this the endpoint accepts a
+ * lead from anyone who learns the URL — and each accepted lead writes a contact,
+ * tags, a note and an opportunity into the CRM.
+ *
+ * Open when no secret is configured, same as the Meta check above, so local
+ * development works unconfigured; set it before the URL is public.
+ */
+export function verifyGhlSecret(headerValue?: string, queryValue?: string): boolean {
+  const secret = process.env.GHL_WEBHOOK_SECRET;
+  if (!secret) return true;
+  const given = headerValue ?? queryValue ?? "";
+  const a = Buffer.from(given);
+  const b = Buffer.from(secret);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 export function isLeadPath(pathname: string): boolean {
   return pathname.startsWith("/api/leads") || pathname.startsWith("/webhooks/");
 }
@@ -171,6 +191,10 @@ export async function handleLeadRequest(
       break;
     }
     case "/webhooks/ghl":
+      if (!verifyGhlSecret(header(req.headers, "x-webhook-secret"), req.query.secret)) {
+        onLog("ghl webhook secret mismatch", {});
+        return fail(401, "invalid secret");
+      }
       leads = [parseGhlWebhook(payload)];
       break;
     case "/api/leads/form":
@@ -210,7 +234,7 @@ export async function handleLeadRequest(
           const result = await ingestor.ingest(lead, payload);
           if (result.status === "duplicate" || result.status === "rejected") continue;
 
-          if (followUp && result.conversationId) {
+          if (followUp && result.conversationId && lead.email) {
             await followUp.send({
               leadId: result.leadId,
               contactId: result.contactId,

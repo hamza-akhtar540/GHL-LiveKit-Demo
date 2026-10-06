@@ -656,9 +656,15 @@ export class AdminData {
    * `retryable` is computed here rather than in the UI so the button and the
    * server agree on one definition of what can be retried.
    */
-  async leads(opts: { limit?: number; offset?: number; status?: string; sort?: string; dir?: string } = {}) {
+  async leads(opts: { limit?: number; offset?: number; status?: string; source?: string; sort?: string; dir?: string } = {}) {
     const limit = opts.limit ?? 30;
-    const where = opts.status ? sql`${leadEvents.status} = ${opts.status}` : undefined;
+    // Both filters are bound parameters, never interpolated, so a client-supplied
+    // value can't change the query. They combine: a status AND a source.
+    const filters = [
+      opts.status ? sql`${leadEvents.status} = ${opts.status}` : undefined,
+      opts.source ? sql`${leadEvents.source} = ${opts.source}` : undefined,
+    ].filter((f): f is NonNullable<typeof f> => f !== undefined);
+    const where = filters.length ? sql.join(filters, sql` and `) : undefined;
 
     /**
      * Sorting is server-side and whitelisted.
@@ -1242,7 +1248,9 @@ export class AdminData {
   async emailConversations(limit = 25) {
     const res = await this.ghl.get<{ conversations?: unknown[] }>(paths.searchConversations(), {
       locationId: this.ghl.env.locationId,
-      limit,
+      // GHL rejects anything above 100 with a 422 rather than clamping. The admin
+      // route allows up to 200 for our own tables, which share the limit param.
+      limit: Math.min(limit, 100),
       // `lastMessageType`, NOT `query_lastMessageType`. The `query_` prefix is an
       // artifact of how the GHL MCP tooling names its inputs, not a real API
       // parameter — and GHL silently IGNORES unknown query params rather than
@@ -1304,6 +1312,7 @@ export class AdminData {
     // posts report "google" regardless of the account they belong to. Resolve it
     // from the account instead.
     const platformByAccountId = new Map(accounts.map((a) => [a.id, a.platform]));
+    const nameByAccountId = new Map(accounts.map((a) => [a.id, a.name]));
     const mirrorById = new Map(mirror.map((p) => [p.id, p]));
 
     const posts = live
@@ -1320,6 +1329,10 @@ export class AdminData {
           createdAt: p.createdAt ?? null,
           topic: ours?.topic ?? null,
           askedBy: ours?.askedBy ?? null,
+          // Which connected account(s) the post belongs to — with posting to every
+          // account, "which page is this on" is the first thing an operator asks.
+          accountKey: [...p.accountIds].sort().join(","),
+          accountName: p.accountIds.map((a) => nameByAccountId.get(a)).filter(Boolean).join(", ") || null,
           manageable: true,
           // A published post's GHL record can be edited, but nothing verified
           // says GHL propagates that to the live Facebook/LinkedIn post.
@@ -1353,12 +1366,18 @@ export class AdminData {
      * so duplicates fan out silently. Surfaced rather than deduped: which one to
      * keep is the operator's call.
      */
-    const bySlot = new Map<string, number>();
+    // Keyed by slot AND account: posting to every connected account puts several
+    // posts in one slot on purpose, so only two posts for the SAME account at the
+    // same time are a duplicate.
+    const bySlot = new Map<string, { at: string; count: number }>();
     for (const p of posts) {
       if (p.status !== "scheduled" || !p.scheduleDate) continue;
-      bySlot.set(p.scheduleDate, (bySlot.get(p.scheduleDate) ?? 0) + 1);
+      const key = `${p.scheduleDate}|${p.accountKey}`;
+      const slot = bySlot.get(key) ?? { at: p.scheduleDate, count: 0 };
+      slot.count += 1;
+      bySlot.set(key, slot);
     }
-    const duplicateSlots = [...bySlot.entries()].filter(([, n]) => n > 1).map(([at, n]) => ({ at, count: n }));
+    const duplicateSlots = [...bySlot.values()].filter((s) => s.count > 1);
 
     return { accounts, posts, unmanageable, insights, duplicateSlots, timezone: this.ghl.env.timezone };
   }

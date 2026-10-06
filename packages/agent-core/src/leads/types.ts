@@ -25,6 +25,12 @@ export interface Lead {
    * same id arriving twice is the same lead, not a second one.
    */
   externalId?: string;
+  /**
+   * An existing conversation this lead belongs to. Set by the DM sync, which
+   * records the whole thread itself — without it the ingestor would open a second,
+   * one-message conversation for the same person.
+   */
+  conversationRef?: string;
   fullName?: string;
   email?: string;
   phone?: string;
