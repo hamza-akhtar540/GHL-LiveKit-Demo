@@ -30,9 +30,9 @@ shape for async, days-apart correspondence.
 
 ```bash
 pnpm install
-cp .env.example .env      # then follow docs/GHL_SETUP.md
+cp .env.example .env      # then fill in the values
 pnpm ghl:smoke            # verify credentials + endpoint shapes (read-only)
-pnpm webhook:listen       # day-1 inbound-email gate — see docs/GHL_SETUP.md §6
+pnpm webhook:listen       # day-1 inbound-email gate
 ```
 
 ## Status
@@ -40,7 +40,7 @@ pnpm webhook:listen       # day-1 inbound-email gate — see docs/GHL_SETUP.md �
 - [x] **T1.1** monorepo scaffold
 - [x] **T1.3** GHL client (auth, retry/backoff, typed errors) + smoke test
 - [x] **T1.4** webhook probe + capture harness
-- [ ] **T1.2** GHL sub-account setup — manual, see `docs/GHL_SETUP.md`
+- [ ] **T1.2** GHL sub-account setup (manual)
 - [ ] **T2.x** the six tools + live-sandbox test suite
 
 ## Notes

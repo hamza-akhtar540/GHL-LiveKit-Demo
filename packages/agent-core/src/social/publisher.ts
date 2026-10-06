@@ -171,7 +171,7 @@ export class SocialPublisher {
    * day-level only — `grouping` is always `"daily"`, there is no hourly
    * breakdown — so we can genuinely learn the best DAY of the week once enough
    * data exists, but the HOUR is always a fixed, sensible default. Getting real
-   * hour-of-day would need Meta's own Insights API. See SOCIAL_AUTOMATION.md §3.
+   * hour-of-day would need Meta's own Insights API.
    *
    * Below `MIN_DAYS_FOR_TIMING` days of collected data, there is no learned
    * "best day" to use — see `bestDays()`. Rather than invent a winner, this

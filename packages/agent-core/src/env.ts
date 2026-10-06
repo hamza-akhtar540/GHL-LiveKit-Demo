@@ -6,7 +6,7 @@ function req(name: string): string {
   const v = process.env[name];
   if (!v || v.trim() === "") {
     throw new Error(
-      `Missing required env var ${name}. Copy .env.example to .env and fill it in (see docs/GHL_SETUP.md).`,
+      `Missing required env var ${name}. Copy .env.example to .env and fill it in.`,
     );
   }
   return v.trim();
@@ -52,7 +52,7 @@ export function calendarIdFor(resourceId: string): string {
 
   throw new Error(
     `No calendar configured for resource "${resourceId}". Set GHL_CALENDAR_${resourceId.toUpperCase()} ` +
-      `in .env (see docs/GHL_SETUP.md §2).`,
+      `in .env..`,
   );
 }
 
