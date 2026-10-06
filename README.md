@@ -40,16 +40,6 @@ pnpm webhook:listen       # day-1 inbound-email gate
 - [x] **T1.1** monorepo scaffold
 - [x] **T1.3** GHL client (auth, retry/backoff, typed errors) + smoke test
 - [x] **T1.4** webhook probe + capture harness
-- [ ] **T1.2** GHL sub-account setup (manual)
-- [ ] **T2.x** the six tools + live-sandbox test suite
 
-## Notes
 
-- **Auth is a Private Integration Token**, not an OAuth marketplace app. Same
-  rate limits, no refresh flow, scoped to one sub-account.
-- **API v2** (`Version: 2021-07-28`). GHL is rolling v3 out per-resource — Users
-  and Opportunities have v3 pages as of mid-2026, Calendars and Contacts do not.
-  Revisit if we lean on Opportunities.
-- **Every GHL path and query-param name is in `src/ghl/endpoints.ts`.** Anything
-  marked `VERIFY` is our read of the v2 surface, confirmed by the smoke test on
-  first run against a real account. When a name is wrong, it's wrong once.
+
